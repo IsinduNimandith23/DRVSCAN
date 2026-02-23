@@ -1,0 +1,75 @@
+.result-card-container {
+  animation: fadeIn 0.5s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.result-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.badge {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.75rem;
+  border-radius: 2rem;
+  font-weight: 600;
+  font-size: 0.9rem;
+  border: 1px solid transparent; /* Set via inline style */
+}
+
+.result-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.label {
+  display: block;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
+  margin-bottom: 0.5rem;
+  font-weight: 600;
+}
+
+.score-display {
+  display: flex;
+  align-items: baseline;
+  gap: 0.25rem;
+}
+
+.score-big {
+  font-size: 3rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.score-unit {
+  font-size: 1rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.explanation-text {
+  font-size: 1rem;
+  line-height: 1.6;
+  color: var(--text-primary);
+  background-color: var(--background-color);
+  padding: 1rem;
+  border-radius: var(--radius-md);
+  border-left: 3px solid var(--primary-color);
+}

@@ -1,0 +1,28 @@
+.ui-card {
+  background-color: var(--surface-color);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-color);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+  transition: box-shadow 0.2s ease-in-out;
+}
+
+.ui-card:hover {
+  box-shadow: var(--shadow-md);
+}
+
+.ui-card-header {
+  padding: 1.5rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.ui-card-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.ui-card-content {
+  padding: 1.5rem;
+}

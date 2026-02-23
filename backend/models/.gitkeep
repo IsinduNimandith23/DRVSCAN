@@ -1,0 +1,7 @@
+# Place your trained model file here
+
+# Supported formats: .h5 (Keras), .keras (TensorFlow SavedModel), .pt/.pth (PyTorch)
+
+# Default expected filename: distraction_model.h5
+
+# You can change this in app.py by modifying the MODEL_PATH variable
