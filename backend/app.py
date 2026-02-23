@@ -10,6 +10,9 @@ import torch.nn.functional as F
 from torchvision import models
 import io
 import os
+import cv2
+import tempfile
+from pathlib import Path
 
 load_dotenv()
 
@@ -21,6 +24,8 @@ MODEL_PATH = os.path.join(os.path.dirname(__file__), os.getenv('MODEL_PATH', 'mo
 MAX_FILE_SIZE = 5 * 1024 * 1024
 INPUT_SIZE = 300  # EfficientNet-B3 uses 300x300
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
+ALLOWED_VIDEO_EXTENSIONS = {'mp4', 'avi', 'mov', 'mkv', 'flv', 'wmv'}
+MAX_VIDEO_SIZE = 100 * 1024 * 1024  # 100MB for videos
 
 # Class labels - adjust to match your model's output
 CLASS_LABELS = {
@@ -146,6 +151,124 @@ def predict_distraction(image_bytes):
         return None
 
 
+def extract_frames_from_video(video_path, frames_per_second=1):
+    """Extract frames from video at specified frames per second."""
+    frames = []
+    timestamps = []  # in seconds
+    
+    try:
+        cap = cv2.VideoCapture(video_path)
+        fps = cap.get(cv2.CAP_PROP_FPS)
+        
+        # Calculate frame interval, ensure it's at least 1
+        frame_interval = max(1, int(fps / frames_per_second)) if frames_per_second > 0 else 1
+        
+        frame_count = 0
+        captured_frames = 0
+        
+        while True:
+            ret, frame = cap.read()
+            if not ret:
+                break
+            
+            # Extract frames at specified rate
+            if frame_count % frame_interval == 0:
+                # Convert BGR to RGB
+                frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                frames.append(frame_rgb)
+                
+                # Calculate timestamp in seconds
+                timestamp = frame_count / fps if fps > 0 else 0
+                timestamps.append(timestamp)
+                captured_frames += 1
+            
+            frame_count += 1
+        
+        cap.release()
+        print(f"[Video] Source FPS: {fps:.1f} | Extracted {captured_frames} frames from {frame_count} total")
+        return frames, timestamps
+    
+    except Exception as e:
+        print(f"[Error] Failed to extract frames: {e}")
+        return [], []
+
+
+def analyze_video(video_path, severity_threshold='Low'):
+    """Analyze video and return distraction detections."""
+    frames, timestamps = extract_frames_from_video(video_path, frames_per_second=1)
+    
+    if not frames:
+        return None
+    
+    distracted_detections = []
+    safe_detections = []
+    distracted_frames = 0
+    safe_frames = 0
+    
+    for i, (frame, timestamp) in enumerate(zip(frames, timestamps)):
+        # Convert frame to PIL Image, serialize to bytes
+        pil_image = Image.fromarray(frame)
+        img_bytes = io.BytesIO()
+        pil_image.save(img_bytes, format='JPEG')
+        img_bytes.seek(0)
+        
+        result = predict_distraction(img_bytes.getvalue())
+        
+        if result:
+            if result['class'] == 'safe_driving':
+                # Record safe driving
+                safe_detections.append({
+                    'timestamp': timestamp,
+                    'frame_number': i,
+                    'class': result['class'],
+                    'severity': 'Low',
+                    'confidence': result['confidence'],
+                    'explanation': 'Driver focused on road. No distractions detected.'
+                })
+                safe_frames += 1
+            else:
+                # Record distraction
+                if result['severity'] in ['High', 'Medium', 'Low']:
+                    if severity_threshold == 'High' and result['severity'] != 'High':
+                        pass
+                    elif severity_threshold == 'Medium' and result['severity'] not in ['High', 'Medium']:
+                        pass
+                    else:
+                        distracted_detections.append({
+                            'timestamp': timestamp,
+                            'frame_number': i,
+                            'class': result['class'],
+                            'severity': result['severity'],
+                            'confidence': result['confidence'],
+                            'explanation': result['explanation']
+                        })
+                        distracted_frames += 1
+        
+        # Progress indicator
+        if (i + 1) % 10 == 0:
+            print(f"[Analysis] Processed {i + 1}/{len(frames)} frames")
+    
+    # Combine detections: distracted first, then safe
+    all_detections = distracted_detections + safe_detections
+    
+    analysis_results = {
+        'total_frames_analyzed': len(frames),
+        'distracted_frames': distracted_frames,
+        'safe_frames': safe_frames,
+        'distraction_percentage': round((distracted_frames / len(frames) * 100), 2) if frames else 0,
+        'detections': all_detections
+    }
+    
+    return analysis_results
+
+
+def format_timestamp(seconds):
+    """Convert seconds to MM:SS format."""
+    minutes = int(seconds) // 60
+    secs = int(seconds) % 60
+    return f"{minutes:02d}:{secs:02d}"
+
+
 @app.route('/api/detect', methods=['POST'])
 def detect_distraction_endpoint():
     """POST /api/detect - Analyze driver image."""
@@ -187,6 +310,76 @@ def detect_distraction_endpoint():
     except Exception as e:
         print(f"[Error] {e}")
         return jsonify({'error': 'Internal server error.'}), 500
+
+
+@app.route('/api/analyze-video', methods=['POST'])
+def analyze_video_endpoint():
+    """POST /api/analyze-video - Analyze driver video for distraction."""
+    temp_video_path = None
+    
+    try:
+        if model is None:
+            return jsonify({'error': 'Model not loaded. Please add model file.'}), 503
+        
+        if 'video' not in request.files:
+            return jsonify({'error': 'No video file provided.'}), 400
+        
+        file = request.files['video']
+        
+        if file.filename == '':
+            return jsonify({'error': 'No video file provided.'}), 400
+        
+        # Check file size
+        file.seek(0, 2)
+        file_size = file.tell()
+        file.seek(0)
+        
+        if file_size > MAX_VIDEO_SIZE:
+            return jsonify({'error': 'Video file too large. Maximum size is 100MB.'}), 400
+        
+        # Check file extension
+        file_ext = file.filename.rsplit('.', 1)[1].lower() if '.' in file.filename else ''
+        if file_ext not in ALLOWED_VIDEO_EXTENSIONS:
+            return jsonify({'error': f'Invalid video format. Allowed: {", ".join(ALLOWED_VIDEO_EXTENSIONS)}'}), 400
+        
+        # Get parameters
+        severity_threshold = request.form.get('severity_threshold', 'Low')
+        
+        # Save to temp file
+        with tempfile.NamedTemporaryFile(suffix=f'.{file_ext}', delete=False) as tmp:
+            temp_video_path = tmp.name
+            file.save(temp_video_path)
+        
+        print(f"[Request] Video: {secure_filename(file.filename)}, {file_size / (1024*1024):.1f}MB")
+        print(f"[Processing] Analyzing at 1 frame per second, Severity threshold: {severity_threshold}")
+        
+        # Analyze video
+        results = analyze_video(temp_video_path, severity_threshold)
+        
+        if results is None:
+            return jsonify({'error': 'Failed to process video.'}), 500
+        
+        # Format timestamps
+        for detection in results['detections']:
+            detection['timestamp_formatted'] = format_timestamp(detection['timestamp'])
+        
+        print(f"[Result] Found {results['distracted_frames']} distracted frames ({results['distraction_percentage']}%)")
+        
+        return jsonify(results)
+        
+    except Exception as e:
+        print(f"[Error] {e}")
+        return jsonify({'error': 'Internal server error.'}), 500
+    
+    finally:
+        # Clean up temp file
+        if temp_video_path and os.path.exists(temp_video_path):
+            try:
+                os.remove(temp_video_path)
+                print(f"[Cleanup] Removed temp video file")
+            except:
+                pass
+
 
 
 @app.route('/api/health', methods=['GET'])

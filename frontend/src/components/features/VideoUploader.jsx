@@ -1,9 +1,9 @@
 import React, { useState } from 'react'
 import { Card } from '../ui/Card'
 import { Button } from '../ui/Button'
-import './ImageUploader.css'
+import './VideoUploader.css'
 
-export function ImageUploader({ file, previewUrl, onFileSelect, onAnalyze, onClear, isLoading }) {
+export function VideoUploader({ file, onFileSelect, onAnalyze, onClear, isLoading }) {
   const [dragActive, setDragActive] = useState(false)
 
   const handleDrag = (e) => {
@@ -22,22 +22,22 @@ export function ImageUploader({ file, previewUrl, onFileSelect, onAnalyze, onCle
     setDragActive(false)
 
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      const imageFile = e.dataTransfer.files[0]
-      if (imageFile.type.startsWith('image/')) {
-        onFileSelect(imageFile)
+      const videoFile = e.dataTransfer.files[0]
+      if (videoFile.type.startsWith('video/')) {
+        onFileSelect(videoFile)
       } else {
-        alert('Please drop a valid image file')
+        alert('Please drop a valid video file')
       }
     }
   }
 
   const handleFileInput = (e) => {
     if (e.target.files && e.target.files[0]) {
-      const imageFile = e.target.files[0]
-      if (imageFile.type.startsWith('image/')) {
-        onFileSelect(imageFile)
+      const videoFile = e.target.files[0]
+      if (videoFile.type.startsWith('video/')) {
+        onFileSelect(videoFile)
       } else {
-        alert('Please select a valid image file')
+        alert('Please select a valid video file')
       }
     }
   }
@@ -45,7 +45,7 @@ export function ImageUploader({ file, previewUrl, onFileSelect, onAnalyze, onCle
   return (
     <Card>
       <div className="upload-container">
-        <h2 className="upload-title">📷 Analyze Driver Image</h2>
+        <h2 className="upload-title">📹 Analyze Driving Video</h2>
         
         {!file ? (
           <div
@@ -57,39 +57,33 @@ export function ImageUploader({ file, previewUrl, onFileSelect, onAnalyze, onCle
           >
             <div className="drag-drop-content">
               <div className="drag-drop-icon">📤</div>
-              <p className="drag-drop-text">Drag & drop your image here</p>
-              <p className="drag-drop-subtext">or click to select (PNG, JPG, JPEG, GIF)</p>
+              <p className="drag-drop-text">Drag & drop your video here</p>
+              <p className="drag-drop-subtext">or click to select (MP4, AVI, MOV, MKV)</p>
             </div>
             <input
               type="file"
-              id="image-input"
-              accept="image/*"
+              id="video-input"
+              accept="video/*"
               className="file-input"
               onChange={handleFileInput}
               disabled={isLoading}
             />
-            <label htmlFor="image-input" className="file-input-label">
-              Choose Image
+            <label htmlFor="video-input" className="file-input-label">
+              Choose Video
             </label>
           </div>
         ) : (
           <div className="file-info">
-            <div className="file-icon">🖼️</div>
+            <div className="file-icon">🎬</div>
             <div className="file-details">
               <p className="file-name">{file.name}</p>
               <p className="file-size">
-                {(file.size / 1024).toFixed(2)} KB
+                {(file.size / (1024 * 1024)).toFixed(2)} MB
               </p>
             </div>
             <Button onClick={onClear} disabled={isLoading} className="btn-remove">
               ✕
             </Button>
-          </div>
-        )}
-
-        {previewUrl && (
-          <div className="image-preview">
-            <img src={previewUrl} alt="Preview" />
           </div>
         )}
 
@@ -100,10 +94,10 @@ export function ImageUploader({ file, previewUrl, onFileSelect, onAnalyze, onCle
               disabled={isLoading}
               className="btn-analyze"
             >
-              {isLoading ? '⏳ Analyzing...' : '🔍 Analyze Image'}
+              {isLoading ? '⏳ Analyzing...' : '🔍 Analyze Video'}
             </Button>
             <p className="analysis-note">
-              Detects driver distraction and severity level
+              Processing will analyze frames every 10 frames for accuracy
             </p>
           </div>
         )}
